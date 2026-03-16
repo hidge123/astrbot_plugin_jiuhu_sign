@@ -1,0 +1,9 @@
+{
+    "token":
+    {
+        "description": "test",
+        "type": "string",
+        "default": ""
+    }
+
+}
