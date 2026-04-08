@@ -7,6 +7,7 @@ import random
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 import json
 import os
+import asyncio
 from enum import Enum
 from .sign_config import SignData
 
@@ -74,15 +75,17 @@ class MyPlugin(Star):
             except Exception as e:
                 self.plugin_logger.log(f"签到数据文件格式错误，将重新创建: {e}", PluginLoggerLevel.WARNING)
                 self.user_data = SignData()
-                self._save_data()
+                await self._save_data()
         else:
-            self._save_data()
+            await self._save_data()
             self.plugin_logger.log("已创建签到数据文件", PluginLoggerLevel.INFO)
 
-    def _save_data(self):
-        """保存用户数据到文件"""
-        with open(self.data_file, "w", encoding="utf-8") as f:
-            json.dump(self.user_data.model_dump(), f, ensure_ascii=False, indent=2)
+    async def _save_data(self):
+        """保存用户数据到文件（异步，使用线程池避免阻塞）"""
+        def _write():
+            with open(self.data_file, "w", encoding="utf-8") as f:
+                json.dump(self.user_data.model_dump(), f, ensure_ascii=False, indent=4)
+        await asyncio.to_thread(_write)
 
     @filter.command("sign")
     async def sign_handler(self, event: AstrMessageEvent):
@@ -98,7 +101,7 @@ class MyPlugin(Star):
         gained = random.randint(1, 5)
         self.user_data.users[user_id].credit += gained
         current_credit = self.user_data.users[user_id].credit
-        self._save_data()
+        await self._save_data()
 
         message_result = event.make_result()
         message_result.chain = [
