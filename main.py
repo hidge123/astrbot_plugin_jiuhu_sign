@@ -75,18 +75,18 @@ class JiuHuSign(Star):
         else:
             self.plugin_logger = PluginLogger(PluginLoggerLevel.WARNING)
 
+        self.user_data: SignData = SignData()   # 用于存储用户签到相关数据
+        self.tarots_meaning =  {}   # 用于存储塔罗牌的含义
+        self.infinite_credit = bool(config.get("infinite_credit"))    # 存储无限饼干模式的状态
+
         # 此插件所在文件夹
         self.plugin_dir = os.path.join(get_astrbot_data_path(), "plugins", self.name)
         # 数据目录存放在 get_astrbot_data_path() 返回的 data 目录下的插件名文件夹中
         self.data_dir = os.path.join(get_astrbot_data_path(), "plugin_data", self.name)
         self.data_file = os.path.join(self.data_dir, "sign_data.json")
-
+        # 塔罗牌功能需要文件的存放位置
         self.tarots_dir = os.path.join(self.plugin_dir, "tarots")
         self.tarots_meaning_file = os.path.join(self.tarots_dir, "tarot_meanings.json")
-
-
-        self.user_data: SignData = SignData()   # 用于存储用户签到相关数据
-        self.tarots_meaning =  {}
 
         # 存储塔罗牌类型对应的图片的文件名
         self.tarot_type = [
@@ -163,7 +163,11 @@ class JiuHuSign(Star):
         # 签到获得 1-5 个小饼干
         gained = random.randint(1, 5)
         self.user_data.users[user_id].credit += gained
-        current_credit = self.user_data.users[user_id].credit
+
+        if self.infinite_credit:
+            current_credit = "infinite"
+        else:
+            current_credit = self.user_data.users[user_id].credit
         await self._save_data()
 
         # 构建返回消息
@@ -195,14 +199,17 @@ class JiuHuSign(Star):
 
         # 构建返回消息
         message_result = event.make_result()
-        if (self.user_data.users[user_id].credit <= 0):
+        if (self.user_data.users[user_id].credit <= 0 and not self.infinite_credit):
             message_result.chain = [
-                Comp.Plain(f"小饼干不足咕,抽不了\n(小提示: 可以试着对酒狐说'/sign'来获取小饼干哦)"),
+                Comp.Plain(f"小饼干不足咕,抽不了啦\n(小提示: 可以试着对酒狐说'/sign'来获取小饼干哦)"),
             ]
             
         elif os.path.exists(image_path):
-            self.user_data.users[user_id].credit -= 1
-            current_credit = self.user_data.users[user_id].credit
+            if self.infinite_credit:
+                current_credit = "infinite"
+            else:
+                self.user_data.users[user_id].credit -= 1
+                current_credit = self.user_data.users[user_id].credit
 
             message_result.chain = [
                 Comp.Plain(f"让狐狐算算啊, {user_name}抽到的是"),
