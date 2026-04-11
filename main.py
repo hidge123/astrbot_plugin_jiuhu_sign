@@ -10,13 +10,8 @@ import os
 import asyncio
 from enum import Enum
 from .sign_config import SignData
+from .plugin_logger import PluginLogger, PluginLoggerLevel
 
-class PluginLoggerLevel(Enum):
-    """用于插件控制日志输出的等级"""
-    DEBUG = 1
-    INFO = 2
-    WARNING = 3
-    ERROR = 4
 
 class TarotType(Enum):
     """塔罗牌的类别"""
@@ -44,26 +39,6 @@ class TarotType(Enum):
     WORLD = "the_world"
 
 
-class PluginLogger:
-    """用于插件控制日志输出的类"""
-
-    def __init__(self, level: PluginLoggerLevel) -> None:
-        self.level = level
-
-    def _should_log(self, level: PluginLoggerLevel) -> bool:
-        return self.level.value <= level.value
-
-    def log(self, msg: str, level: PluginLoggerLevel = PluginLoggerLevel.INFO) -> None:
-        if self._should_log(level):
-            if level == PluginLoggerLevel.DEBUG:
-                logger.debug(msg)
-            elif level == PluginLoggerLevel.INFO:
-                logger.info(msg)
-            elif level == PluginLoggerLevel.WARNING:
-                logger.warning(msg)
-            elif level == PluginLoggerLevel.ERROR:
-                logger.error(msg)
-
 
 class JiuHuSign(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -76,7 +51,7 @@ class JiuHuSign(Star):
             self.plugin_logger = PluginLogger(PluginLoggerLevel.WARNING)
 
         self.user_data: SignData = SignData()   # 用于存储用户签到相关数据
-        self.tarots_meaning =  {}   # 用于存储塔罗牌的含义
+        self.tarots_meaning = {}   # 用于存储塔罗牌的含义
         self.infinite_credit = bool(config.get("infinite_credit"))    # 存储无限饼干模式的状态
 
         # 此插件所在文件夹
@@ -227,6 +202,10 @@ class JiuHuSign(Star):
             ]
 
         await event.send(message_result)
+
+    @filter.command("jrys")
+    async def jrys_handler(self, event: AstrMessageEvent):
+        pass
 
     async def terminate(self):
         pass
