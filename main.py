@@ -8,9 +8,11 @@ from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 import json
 import os
 import asyncio
+import aiofiles
 from enum import Enum
 from .sign_config import SignData
 from .plugin_logger import PluginLogger, PluginLoggerLevel
+from .resources import ResourceManager
 
 
 class TarotType(Enum):
@@ -62,6 +64,9 @@ class JiuHuSign(Star):
         # 塔罗牌功能需要文件的存放位置
         self.tarots_dir = os.path.join(self.plugin_dir, "tarots")
         self.tarots_meaning_file = os.path.join(self.tarots_dir, "tarot_meanings.json")
+        
+        # 注册资源管理器
+        self.resource_manager = ResourceManager(self.name, config)
 
         # 存储塔罗牌类型对应的图片的文件名
         self.tarot_type = [
@@ -95,31 +100,26 @@ class JiuHuSign(Star):
         os.makedirs(self.data_dir, exist_ok=True)
         if os.path.exists(self.data_file):
             try:
-                with open(self.data_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                data = await self.resource_manager.read_json(self.data_file)
                 # 使用 Pydantic 验证数据格式
                 self.user_data = SignData.model_validate(data)
                 self.plugin_logger.log(f"已加载签到数据，共 {len(self.user_data.users)} 个用户", PluginLoggerLevel.INFO)
             except Exception as e:
                 self.plugin_logger.log(f"签到数据文件格式错误，将重新创建: {e}", PluginLoggerLevel.WARNING)
                 self.user_data = SignData()
-                await self._save_data()
+                await self.resource_manager.save_json(self.user_data.model_dump(), self.data_file)
         else:
             await self._save_data()
             self.plugin_logger.log("已创建签到数据文件", PluginLoggerLevel.INFO)
 
         if os.path.exists(self.tarots_meaning_file):
-            with open(self.tarots_meaning_file, "r", encoding="utf-8") as f:
-                self.tarots_meaning = json.load(f)
+            self.tarots_meaning = await self.resource_manager.read_json(self.tarots_meaning_file)
         else:
             self.plugin_logger.log("文件tarot_meaning.json缺失", PluginLoggerLevel.ERROR)
 
     async def _save_data(self):
         """保存用户数据到文件（异步，使用线程池避免阻塞）"""
-        def _write():
-            with open(self.data_file, "w", encoding="utf-8") as f:
-                json.dump(self.user_data.model_dump(), f, ensure_ascii=False, indent=4)
-        await asyncio.to_thread(_write)
+        await self.resource_manager.save_data(self.user_data)
 
     def _init_user_credit(self, user_id):
         """获取或初始化用户的 credit"""
@@ -203,8 +203,8 @@ class JiuHuSign(Star):
 
         await event.send(message_result)
 
-    @filter.command("jrys")
-    async def jrys_handler(self, event: AstrMessageEvent):
+    @filter.command("fortune")
+    async def fortune_handler(self, event: AstrMessageEvent):
         pass
 
     async def terminate(self):
