@@ -1,18 +1,100 @@
 {
-    "debug_mode":
+    "sign_config":
     {
-        "description": "调试模式",
-        "hint": "是否启用详细的调试信息",
-        "type": "bool",
-        "default": false
+        "description": "签到功能相关配置",
+        "type": "object",
+        "items": 
+        {
+            "infinite_credit":
+            {
+                "description": "无限饼干模式",
+                "hint": "任何需要饼干(credit)的功能都直接成功",
+                "type": "bool",
+                "default": false
+            }
+        }
     },
 
-    "infinite_credit":
+    "fortune_config":
     {
-        "description": "无限饼干模式",
-        "hint": "任何需要饼干(credit)都直接成功",
-        "type": "bool",
-        "default": false
-    }
+        "description": "今日运势相关配置",
+        "type": "object",
+        "hint": "",
+        "items":
+        {
+            "delay_time":
+            {
+                "description": "图片缓存时间",
+                "type": "object",
+                "hint": "",
+                "items":
+                {
+                    "avatar":
+                    {
+                        "description": "用户头像的缓存时间",
+                        "hint": "",
+                        "type": "int",
+                        "default": 60
+                    },
 
+                    "output":
+                    {
+                        "description": "生成运势卡片的缓存时间",
+                        "hint": "",
+                        "type": "int",
+                        "default": 60
+                    }
+                }
+            },
+
+            "probability":
+            {
+                "description": "概率",
+                "hint": "调整个运势等级出现的概率",
+                "type": "object",
+                "items":
+                {
+                    "ji":
+                    {
+                        "description": "吉的概率",
+                        "type": "int",
+                        "default": 10,
+                        "slider": {"min": 1, "max": 10, "step": 1}
+                    },
+
+                    "ping":
+                    {
+                        "description": "平的概率",
+                        "type": "int",
+                        "default": 10,
+                        "slider": {"min": 1, "max": 10, "step": 1}
+                    },
+
+                    "xiong":
+                    {
+                        "description": "凶的概率",
+                        "type": "int",
+                        "default": 10,
+                        "slider": {"min": 1, "max": 10, "step": 1}
+                    }
+                }
+            }
+        }
+    },
+
+    "other_config":
+    {
+        "description": "其他配置",
+        "type": "object",
+        "items":
+        {
+            "debug_mode":
+            {
+                "description": "调试模式",
+                "hint": "是否启用详细的调试信息",
+                "type": "bool",
+                "default": false
+            }
+        }
+    }
 }
