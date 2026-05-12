@@ -1,6 +1,5 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
-from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
+from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.star import Context, Star
 import astrbot.api.message_components as Comp
 from astrbot.api import AstrBotConfig
 import random
@@ -236,10 +235,21 @@ class JiuHuSign(Star):
         user_id = event.get_session_id()
         user_name = event.get_sender_name()
 
-        # 获取塔罗牌的图片路径和占卜结果
+        # 确保用户的credit数据存在
+        self._init_user_credit(group_id, user_id)
+
+        # 检查小饼干是否足够
+        if self.user_data.groups[group_id].users[user_id].credit <= 0 and not self.infinite_credit:
+            message_result = event.make_result()
+            message_result.chain = [
+                Comp.Plain(f"小饼干不足咕,抽不了啦\n(小提示: 可以试着对酒狐说'/sign'来获取小饼干哦)"),
+            ]
+            await event.send(message_result)
+            return
+
+        # 抽取塔罗牌
         tarot = random.choice(self.tarot_type).value
         is_reversed = random.randint(0, 1)
-
         upright_path = os.path.join(self.tarots_dir, "image", f"{tarot}.png")
 
         if is_reversed:
@@ -258,36 +268,26 @@ class JiuHuSign(Star):
         else:
             image_path = upright_path
 
-        # 确保用户的credit数据存在
-        self._init_user_credit(group_id, user_id)
-
         # 构建返回消息
         message_result = event.make_result()
-        if (self.user_data.groups[group_id].users[user_id].credit <= 0 and not self.infinite_credit):
-            message_result.chain = [
-                Comp.Plain(f"呜哇，小饼干吃光啦！没有好吃的我才不给你抽卡呢 0v0\n想要继续的话，就试着对我说 '/sign' 去赚点零食回来吧 www"),
-            ]
-
-        elif os.path.exists(image_path):
-            if self.infinite_credit:
-                current_credit = "infinite"
-            else:
+        if os.path.exists(image_path):
+            if not self.infinite_credit:
                 self.user_data.groups[group_id].users[user_id].credit -= 1
                 current_credit = self.user_data.groups[group_id].users[user_id].credit
+            else:
+                current_credit = "infinite"
 
             message_result.chain = [
-                Comp.Plain(f"唔...让我看看 {user_name} 抽到了什么好东西~"),
+                Comp.Plain(f"让狐狐算算啊, {user_name}抽到的是"),
                 Comp.Image.fromFileSystem(image_path),
-                Comp.Plain(f"结果出来啦，是：{meaning}\n作为报酬，这1个小饼干我就嗷呜一口吃掉啦！你现在还剩 {current_credit} 个小饼干哦 0v0"),
+                Comp.Plain(f"这张牌对应的结果是: {meaning}\n本次服务耗费1个小饼干, {user_name}你还剩{current_credit}个哦"),
             ]
 
             await self._save_data()
-
         else:
             self.plugin_logger.log(f"{image_path} 对应的图片不存在或存放位置不正确", PluginLoggerLevel.WARNING)
-
             message_result.chain = [
-                Comp.Plain(f"拿人手短，让狐狐算算 {user_name} 抽到了什么呀~\n咦？怎么什么都没有 0v0 是不是你给的小饼干不够甜，卡池都不干活了 QAQ"),
+                Comp.Plain(f"让狐狐算算啊, {user_name}抽到的是\n哎!奇怪, 狐狸什么都没有抽到诶"),
             ]
 
         await event.send(message_result)

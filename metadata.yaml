@@ -1,9 +1,16 @@
-name: astrbot_plugin_jiuhu_sign # 插件唯一识别名，以 astrbot_plugin_ 前缀开头
-display_name: 酒狐主题签到 # 用于展示的名字，可以是方便人类阅读的名字（需要版本 >= v4.5.0，低版本不会报错，请放心填写）
-desc: 一个简单的酒狐主题的签到插件。 # 插件简短描述
-version: v0.2 # 插件版本号。格式：v1.1.1 或者 v1.1
-author: hidge123 # 作者
-repo: https://github.com/hidge123/astrbot_plugin_jiuhu_sign # 插件的仓库地址
+name: astrbot_plugin_jiuhu_sign
+display_name: 酒狐主题签到
+desc: 酒狐主题的签到插件，支持每日签到、塔罗牌占卜、今日运势卡生成
+version: v1.0.0
+author: hidge123
+repo: https://github.com/hidge123/astrbot_plugin_jiuhu_sign
 support_platforms:
   - aiocqhttp
-astrbot_version: ""
+  - telegram
+  - wecom
+  - dingtalk
+  - lark
+  - slack
+  - discord
+  - matrix
+astrbot_version: ">=4.20.0"
