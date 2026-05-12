@@ -225,7 +225,7 @@ class JiuHuSign(Star):
         # 构建返回消息
         message_result = event.make_result()
         message_result.chain = [
-            Comp.Plain(f"{user_name}签到成功,获得{gained}个小饼干!\n当前共有 {current_credit} 个小饼干。")
+            Comp.Plain(f"唔...闻到香香的味道了~ {user_name} 签到拿到 {gained} 个小饼干啦！放在我这里帮你保管好不好呀 0v0\n你现在一共攒了 {current_credit} 个小饼干了，分我吃一口嘛~")
         ]
 
         await event.send(message_result)
@@ -265,7 +265,7 @@ class JiuHuSign(Star):
         message_result = event.make_result()
         if (self.user_data.groups[group_id].users[user_id].credit <= 0 and not self.infinite_credit):
             message_result.chain = [
-                Comp.Plain(f"小饼干不足咕,抽不了啦\n(小提示: 可以试着对酒狐说'/sign'来获取小饼干哦)"),
+                Comp.Plain(f"呜哇，小饼干吃光啦！没有好吃的我才不给你抽卡呢 0v0\n想要继续的话，就试着对我说 '/sign' 去赚点零食回来吧 www"),
             ]
 
         elif os.path.exists(image_path):
@@ -276,9 +276,9 @@ class JiuHuSign(Star):
                 current_credit = self.user_data.groups[group_id].users[user_id].credit
 
             message_result.chain = [
-                Comp.Plain(f"让狐狐算算啊, {user_name}抽到的是"),
+                Comp.Plain(f"唔...让我看看 {user_name} 抽到了什么好东西~"),
                 Comp.Image.fromFileSystem(image_path),
-                Comp.Plain(f"这张牌对应的结果是: {meaning}\n本次服务耗费1个小饼干, {user_name}你还剩{current_credit}个哦"),
+                Comp.Plain(f"结果出来啦，是：{meaning}\n作为报酬，这1个小饼干我就嗷呜一口吃掉啦！你现在还剩 {current_credit} 个小饼干哦 0v0"),
             ]
 
             await self._save_data()
@@ -287,7 +287,7 @@ class JiuHuSign(Star):
             self.plugin_logger.log(f"{image_path} 对应的图片不存在或存放位置不正确", PluginLoggerLevel.WARNING)
 
             message_result.chain = [
-                Comp.Plain(f"让狐狐算算啊, {user_name}抽到的是\n哎!奇怪, 狐狸什么都没有抽到诶"),
+                Comp.Plain(f"拿人手短，让狐狐算算 {user_name} 抽到了什么呀~\n咦？怎么什么都没有 0v0 是不是你给的小饼干不够甜，卡池都不干活了 QAQ"),
             ]
 
         await event.send(message_result)
@@ -362,7 +362,7 @@ class JiuHuSign(Star):
         if output_path is None:
             self.plugin_logger.log("生成运势卡时出现错误")
             message_result = event.make_result()
-            message_result.chain = [Comp.Plain("运势功能暂时不可用咕")]
+            message_result.chain = [Comp.Plain(f"呜哇，看运势的牌牌好像卡住了 0v0！绝对不是因为狐狐觉得算命太麻烦才弄坏的哦 QAQ，总之现在暂时算不了啦~")]
             await event.send(message_result)
             return 
 
