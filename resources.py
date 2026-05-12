@@ -173,6 +173,6 @@ class ResourceManager:
     def generate_filename(self) -> str:
         """依据当前时间生成一段用于文件名的字符串"""
         now = datetime.now()
-        formatted = now.strftime("%Y%m%d_%H:%M%S")
+        formatted = now.strftime("%Y%m%d_%H%M%S")
 
         return formatted

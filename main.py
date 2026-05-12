@@ -7,6 +7,7 @@ import random
 import os
 import asyncio
 from enum import Enum
+from PIL import Image
 from .sign_config import SignData
 from .plugin_logger import PluginLogger, PluginLoggerLevel
 from .resources import ResourceManager
@@ -133,7 +134,9 @@ class JiuHuSign(Star):
                 data = await self.resource_manager.read_json(self.signdata_file)
                 # 使用 Pydantic 验证数据格式
                 self.user_data = SignData.model_validate(data)
-                self.plugin_logger.log(f"已加载签到数据，共 {len(self.user_data.users)} 个用户", PluginLoggerLevel.INFO)
+                self.plugin_logger.log(
+                    f"已加载签到数据, 共{len(self.user_data.groups)}个群组, 共{sum(len(v.users) for k, v in self.user_data.groups.items())}个用户"
+                )
             except Exception as e:
                 self.plugin_logger.log(f"签到数据文件格式错误，将重新创建: {e}", PluginLoggerLevel.WARNING)
                 self.user_data = SignData()
@@ -156,11 +159,15 @@ class JiuHuSign(Star):
         """保存用户数据到文件（异步，使用线程池避免阻塞）"""
         await self.resource_manager.save_data(self.user_data)
 
-    def _init_user_credit(self, user_id):
+    def _init_user_credit(self, group_id, user_id):
         """获取或初始化用户的 credit"""
-        if user_id not in self.user_data.users:
+        if group_id not in self.user_data.groups:
+            from .sign_config import GroupData
+            self.user_data.groups[group_id] = GroupData(users={})
+
+        if user_id not in self.user_data.groups[group_id].users:
             from .sign_config import UserData
-            self.user_data.users[user_id] = UserData(credit=0)
+            self.user_data.groups[group_id].users[user_id] = UserData(credit=0)
 
     def _get_fortune(self) -> FortuneType:
         """根据配置的概率获取运势结果"""
@@ -198,20 +205,21 @@ class JiuHuSign(Star):
 
     @filter.command("sign")
     async def sign_handler(self, event: AstrMessageEvent):
+        group_id = event.get_group_id()
         user_id = event.get_session_id()
         user_name = event.get_sender_name()
 
         # 确保用户的credit数据存在
-        self._init_user_credit(user_id)
+        self._init_user_credit(group_id, user_id)
 
         # 签到获得 1-5 个小饼干
         gained = random.randint(1, 5)
-        self.user_data.users[user_id].credit += gained
+        self.user_data.groups[group_id].users[user_id].credit += gained
 
         if self.infinite_credit:
             current_credit = "infinite"
         else:
-            current_credit = self.user_data.users[user_id].credit
+            current_credit = self.user_data.groups[group_id].users[user_id].credit
         await self._save_data()
 
         # 构建返回消息
@@ -224,6 +232,7 @@ class JiuHuSign(Star):
 
     @filter.command("tarot")
     async def tarot_handler(self, event: AstrMessageEvent):
+        group_id = event.get_group_id()
         user_id = event.get_session_id()
         user_name = event.get_sender_name()
 
@@ -231,29 +240,40 @@ class JiuHuSign(Star):
         tarot = random.choice(self.tarot_type).value
         is_reversed = random.randint(0, 1)
 
+        upright_path = os.path.join(self.tarots_dir, "image", f"{tarot}.png")
+
         if is_reversed:
             meaning = self.tarots_meaning.get(f"{tarot}_r")
-            image_path = os.path.join(self.tarots_dir, "image", f"{tarot}_r.png")
         else:
             meaning = self.tarots_meaning.get(f"{tarot}")
-            image_path = os.path.join(self.tarots_dir, "image", f"{tarot}.png")
+
+        # 翻转牌：用 Pillow 旋转正向图片生成临时文件，避免存储两份图片
+        if is_reversed and os.path.exists(upright_path):
+            img = Image.open(upright_path)
+            rotated = img.rotate(180)
+            temp_filename = f"tarot_{tarot}_reversed_{self.resource_manager.generate_filename()}.png"
+            image_path = os.path.join(self.output_dir, temp_filename)
+            rotated.save(image_path)
+            self.resource_manager.schedule_delete(image_path, self.output_delay_time)
+        else:
+            image_path = upright_path
 
         # 确保用户的credit数据存在
-        self._init_user_credit(user_id)
+        self._init_user_credit(group_id, user_id)
 
         # 构建返回消息
         message_result = event.make_result()
-        if (self.user_data.users[user_id].credit <= 0 and not self.infinite_credit):
+        if (self.user_data.groups[group_id].users[user_id].credit <= 0 and not self.infinite_credit):
             message_result.chain = [
                 Comp.Plain(f"小饼干不足咕,抽不了啦\n(小提示: 可以试着对酒狐说'/sign'来获取小饼干哦)"),
             ]
-            
+
         elif os.path.exists(image_path):
             if self.infinite_credit:
                 current_credit = "infinite"
             else:
-                self.user_data.users[user_id].credit -= 1
-                current_credit = self.user_data.users[user_id].credit
+                self.user_data.groups[group_id].users[user_id].credit -= 1
+                current_credit = self.user_data.groups[group_id].users[user_id].credit
 
             message_result.chain = [
                 Comp.Plain(f"让狐狐算算啊, {user_name}抽到的是"),
