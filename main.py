@@ -251,7 +251,7 @@ class JiuHuSign(Star):
         if is_reversed and os.path.exists(upright_path):
             img = Image.open(upright_path)
             rotated = img.rotate(180)
-            temp_filename = f"tarot_{tarot}_reversed_{self.resource_manager.generate_filename()}.png"
+            temp_filename = f"{tarot}_reversed_{self.resource_manager.generate_filename()}.png"
             image_path = os.path.join(self.output_dir, temp_filename)
             rotated.save(image_path)
             self.resource_manager.schedule_delete(image_path, self.output_delay_time)
