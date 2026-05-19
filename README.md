@@ -1,6 +1,6 @@
 # 酒狐主题签到 (astrbot_plugin_jiuhu_sign)
 
-酒狐主题的 AstrBot 签到插件，提供每日签到、塔罗牌占卜和今日运势卡生成功能。
+一个简单的酒狐主题的 AstrBot 签到插件，提供每日签到、塔罗牌占卜和今日运势卡生成功能。
 
 ## 功能
 
@@ -78,6 +78,10 @@ astrbot_plugin_jiuhu_sign/
 ```
 
 运行时数据目录：`plugin_data/astrbot_plugin_jiuhu_sign/`
+
+## 其他
+
+运势功能的实现参考了 [astrbot_plugin_jrys]("https://github.com/NINIYOYYO/astrbot_plugin_jrys?tab=AGPL-3.0-1-ov-file") 仓库
 
 ## 许可证
 
