@@ -171,7 +171,7 @@ class FortuneCardGenerator:
     ) -> str | None:
         """根据背景图和文案生成最终吉凶卡。"""
         if input_path is None:
-            self.plugin_logger.log("背景图片路径为None", PluginLoggerLevel.WARNING)
+            self.plugin_logger.log("背景图片路径为 None", PluginLoggerLevel.ERROR)
             return None
         with Image.open(input_path) as original:
             image = self._crop_to_ratio(original.convert("RGB"))

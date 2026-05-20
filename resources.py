@@ -44,10 +44,10 @@ class ResourceManager:
     async def save_image(self, src: bytes, save_path: str | None) -> Optional[str]:
         """保存图片到指定路径"""
         if not save_path:
-            self.plugin_logger.log(f"保存路径为 None", PluginLoggerLevel.ERROR)
+            self.plugin_logger.log("保存图片失败: 路径参数为 None", PluginLoggerLevel.ERROR)
             return None
         if os.path.exists(save_path):
-            self.plugin_logger.log(f"文件已存在,path: {save_path}", PluginLoggerLevel.ERROR)
+            self.plugin_logger.log(f"图片已存在，跳过保存: {save_path}", PluginLoggerLevel.WARNING)
             return save_path
 
         try:
@@ -55,13 +55,13 @@ class ResourceManager:
                 await f.write(src)
                 return save_path
         except Exception as e:
-            self.plugin_logger.log(f"{e}", PluginLoggerLevel.ERROR)
+            self.plugin_logger.log(f"保存图片失败: {save_path} | {e}", PluginLoggerLevel.ERROR)
             return None
 
     async def save_json(self, src: Dict[str, Any], save_path: str | None) -> Optional[str]:
         """将字典数据保存为 JSON 文件"""
         if not save_path:
-            self.plugin_logger.log(f"保存路径为 None", PluginLoggerLevel.ERROR)
+            self.plugin_logger.log("保存JSON失败: 路径参数为 None", PluginLoggerLevel.ERROR)
             return None
         try:
             async with aiofiles.open(save_path, "w", encoding="utf-8") as f:
@@ -69,7 +69,7 @@ class ResourceManager:
                 await f.write(content)
                 return save_path
         except Exception as e:
-            self.plugin_logger.log(f"{e}", PluginLoggerLevel.ERROR)
+            self.plugin_logger.log(f"保存JSON失败: {save_path} | {e}", PluginLoggerLevel.ERROR)
             return None
 
     async def save_data(self, src: SignData) -> None:
@@ -79,7 +79,7 @@ class ResourceManager:
                 content = json.dumps(src.model_dump(), ensure_ascii=False, indent=4)
                 await f.write(content)
         except Exception as e:
-            self.plugin_logger.log(f"{e}", PluginLoggerLevel.ERROR)
+            self.plugin_logger.log(f"保存签到数据失败: {self.signdata_file} | {e}", PluginLoggerLevel.ERROR)
 
     async def download_image(
             self, url: str | None,
@@ -88,42 +88,42 @@ class ResourceManager:
         ) -> Optional[str]:
         """从 URL 下载图片并保存"""
         if not url:
-            self.plugin_logger.log(f"下载 URL 为 None", PluginLoggerLevel.ERROR)
+            self.plugin_logger.log("下载图片失败: URL 参数为 None", PluginLoggerLevel.ERROR)
             return None
         if not save_path:
-            self.plugin_logger.log(f"保存路径为 None", PluginLoggerLevel.ERROR)
+            self.plugin_logger.log("下载图片失败: 保存路径参数为 None", PluginLoggerLevel.ERROR)
             return None
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
                     return await self.save_image(await resp.read(), save_path)
             except Exception as e:
-                self.plugin_logger.log(f"{e}", PluginLoggerLevel.ERROR)
+                self.plugin_logger.log(f"下载图片失败: {url} | {e}", PluginLoggerLevel.ERROR)
                 return None
 
     async def read_image(self, src_path: str | None) -> Optional[bytes]:
         """读取图片文件，返回 bytes 或 None"""
         if not src_path:
-            self.plugin_logger.log(f"读取路径为 None", PluginLoggerLevel.ERROR)
+            self.plugin_logger.log("读取图片失败: 路径参数为 None", PluginLoggerLevel.ERROR)
             return None
-        if os.path.exists(src_path):
-            try:
-                async with aiofiles.open(src_path, "rb") as f:
-                    return await f.read()
-            except Exception as e:
-                self.plugin_logger.log(f"{e}", PluginLoggerLevel.ERROR)
+        if not os.path.exists(src_path):
+            self.plugin_logger.log(f"读取图片失败: 文件不存在 {src_path}", PluginLoggerLevel.ERROR)
+            return None
 
-        else:
-            self.plugin_logger.log(f"文件不存在,path: {src_path}", PluginLoggerLevel.ERROR)
+        try:
+            async with aiofiles.open(src_path, "rb") as f:
+                return await f.read()
+        except Exception as e:
+            self.plugin_logger.log(f"读取图片失败: {src_path} | {e}", PluginLoggerLevel.ERROR)
             return None
 
     async def read_json(self, src_path: str | None) -> Dict[str, Any]:
         """读取 JSON 文件，返回字典，失败返回空字典"""
         if not src_path:
-            self.plugin_logger.log(f"读取路径为 None", PluginLoggerLevel.ERROR)
+            self.plugin_logger.log("读取JSON失败: 路径参数为 None", PluginLoggerLevel.ERROR)
             return {}
         if not os.path.exists(src_path):
-            self.plugin_logger.log(f"文件不存在,path: {src_path}", PluginLoggerLevel.ERROR)
+            self.plugin_logger.log(f"读取JSON失败: 文件不存在 {src_path}", PluginLoggerLevel.ERROR)
             return {}
 
         try:
@@ -131,16 +131,16 @@ class ResourceManager:
                 content = await f.read()
                 return json.loads(content)
         except Exception as e:
-            self.plugin_logger.log(f"读取json文件{src_path}时发生错误: {e}")
+            self.plugin_logger.log(f"读取JSON失败: {src_path} | {e}", PluginLoggerLevel.ERROR)
             return {}
 
     def get_files(self, folder: str | None) -> list[str]:
         """不递归的列出所给文件夹下的所有文件"""
         if not folder:
-            self.plugin_logger.log(f"文件夹路径为 None", PluginLoggerLevel.ERROR)
+            self.plugin_logger.log("列出文件失败: 路径参数为 None", PluginLoggerLevel.ERROR)
             return []
         if not os.path.isdir(folder):
-            self.plugin_logger.log(f"文件夹不存在: {folder}", PluginLoggerLevel.WARNING)
+            self.plugin_logger.log(f"列出文件失败: 文件夹不存在 {folder}", PluginLoggerLevel.WARNING)
             return []
         files = [
             os.path.join(folder, f)
@@ -153,10 +153,10 @@ class ResourceManager:
     def schedule_delete(self, path: str | None, delay: float) -> Optional[asyncio.Task]:
         """定时删除文件，经过 delay 秒后删除指定路径的文件"""
         if not path:
-            self.plugin_logger.log("文件路径为 None", PluginLoggerLevel.ERROR)
+            self.plugin_logger.log("定时删除失败: 路径参数为 None", PluginLoggerLevel.ERROR)
             return None
         if not os.path.exists(path):
-            self.plugin_logger.log(f"文件不存在，跳过删除: {path}", PluginLoggerLevel.WARNING)
+            self.plugin_logger.log(f"定时删除跳过: 文件不存在 {path}", PluginLoggerLevel.WARNING)
             return None
 
         async def _delete():
@@ -164,11 +164,11 @@ class ResourceManager:
             try:
                 if os.path.exists(path):
                     os.remove(path)
-                    self.plugin_logger.log(f"定时删除文件成功: {path}", PluginLoggerLevel.INFO)
+                    self.plugin_logger.log(f"定时删除成功: {path}", PluginLoggerLevel.INFO)
                 else:
-                    self.plugin_logger.log(f"文件不存在，跳过删除: {path}", PluginLoggerLevel.WARNING)
+                    self.plugin_logger.log(f"定时删除跳过: 文件已不存在 {path}", PluginLoggerLevel.WARNING)
             except Exception as e:
-                self.plugin_logger.log(f"删除文件失败 {path}: {e}", PluginLoggerLevel.ERROR)
+                self.plugin_logger.log(f"定时删除失败: {path} | {e}", PluginLoggerLevel.ERROR)
 
         return asyncio.create_task(_delete())
 
