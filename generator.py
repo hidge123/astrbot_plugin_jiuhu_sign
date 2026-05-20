@@ -163,13 +163,16 @@ class FortuneCardGenerator:
 
     async def generate(
         self,
-        input_path: str,
+        input_path: str | None,
         title: str,
         yi_text: str,
         ji_text: str,
         avatar_path: str | None = None,
     ) -> str | None:
         """根据背景图和文案生成最终吉凶卡。"""
+        if input_path is None:
+            self.plugin_logger.log("背景图片路径为None", PluginLoggerLevel.WARNING)
+            return None
         with Image.open(input_path) as original:
             image = self._crop_to_ratio(original.convert("RGB"))
             image = image.resize(self.target_size, Image.Resampling.LANCZOS).convert("RGBA")

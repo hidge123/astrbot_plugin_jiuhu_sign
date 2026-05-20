@@ -81,7 +81,7 @@ astrbot_plugin_jiuhu_sign/
 
 ## 其他
 
-运势功能的实现参考了 [astrbot_plugin_jrys]("https://github.com/NINIYOYYO/astrbot_plugin_jrys?tab=AGPL-3.0-1-ov-file") 仓库
+运势功能的实现参考了 [astrbot_plugin_jrys](https://github.com/NINIYOYYO/astrbot_plugin_jrys?tab=AGPL-3.0-1-ov-file) 仓库
 
 ## 许可证
 

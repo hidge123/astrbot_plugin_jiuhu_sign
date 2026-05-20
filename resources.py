@@ -31,10 +31,12 @@ class ResourceManager:
         # 塔罗牌功能需要文件路径
         self.tarots_dir = os.path.join(self.plugin_dir, "tarots")
         self.tarots_meaning_file = os.path.join(self.tarots_dir, "tarot_meanings.json")
+        # 塔罗牌图片 CDN 地址
+        self.tarots_cdn_base = "https://cdn.jsdelivr.net/gh/hidge123/astrbot_plugin_jiuhu_sign_images@main/tarots"
         # 今日运势相关功能所需文件路径
         self.fortune_dir = os.path.join(self.plugin_dir, "fortune")
         self.font_dir = os.path.join(self.fortune_dir, "font")
-        self.background_dir = os.path.join(self.fortune_dir, "backgrounds")
+        self.background = os.path.join(self.fortune_dir, "background.json")
         self.output_dir = os.path.join(self.data_dir, "output")
         self.avatar_dir = os.path.join(self.data_dir, "avatar")
         self.fortune_text_file = os.path.join(self.fortune_dir, "fortune_text.json")

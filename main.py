@@ -61,7 +61,9 @@ class JiuHuSign(Star):
 
         self.user_data: SignData = SignData()   # 用于存储用户签到相关数据
         self.tarots_meaning = {}   # 用于存储塔罗牌的含义
-        self.fortune_text = {}  # 用于存储黄历中宜忌事项
+        self.fortune_text = {}  # 用于存储宜忌事项
+        self.background_urls: list[str] = []   # 用于存储运势卡背景图的url
+        
         self.infinite_credit = config["sign_config"]["infinite_credit"]    # 存储无限饼干模式的状态
         self.avatar_delay_time = config["fortune_config"]["delay_time"]["avatar"]   # 头像缓存时间
         self.output_delay_time = config["fortune_config"]["delay_time"]["output"]   # 运势卡缓存时间
@@ -90,7 +92,7 @@ class JiuHuSign(Star):
         self.tarots_meaning_file = self.resource_manager.tarots_meaning_file
         # 今日运势相关功能所需文件的路径
         self.fortune_dir = self.resource_manager.fortune_dir
-        self.background_dir = self.resource_manager.background_dir
+        self.background = self.resource_manager.background
         self.output_dir = self.resource_manager.output_dir
         self.avatar_dir = self.resource_manager.avatar_dir
         self.fortune_text_file = self.resource_manager.fortune_text_file
@@ -153,6 +155,15 @@ class JiuHuSign(Star):
             self.fortune_text = await self.resource_manager.read_json(self.fortune_text_file)
         else:
             self.plugin_logger.log("文件fortune_text.json缺失", PluginLoggerLevel.ERROR)
+
+        if os.path.exists(self.background):
+            background_json = await self.resource_manager.read_json(self.background)
+            self.background_urls = background_json.get("urls", [])
+            if not self.background_urls:
+                self.plugin_logger.log("background.json 中 urls 为空或不存在", PluginLoggerLevel.WARNING)
+        else:
+            self.plugin_logger.log("文件background.json缺失", PluginLoggerLevel.ERROR)
+
 
     async def _save_data(self):
         """保存用户数据到文件（异步，使用线程池避免阻塞）"""
@@ -242,7 +253,7 @@ class JiuHuSign(Star):
         if self.user_data.groups[group_id].users[user_id].credit <= 0 and not self.infinite_credit:
             message_result = event.make_result()
             message_result.chain = [
-                Comp.Plain(f"小饼干不足咕,抽不了啦\n(小提示: 可以试着对酒狐说'/sign'来获取小饼干哦)"),
+                Comp.Plain(f"诶...你的小饼干不够了呀，这点零食还想骗我干活 QAQ？\n快去发个 '/sign' 领点小饼干再来找我玩嘛~"),
             ]
             await event.send(message_result)
             return
@@ -250,47 +261,59 @@ class JiuHuSign(Star):
         # 抽取塔罗牌
         tarot = random.choice(self.tarot_type).value
         is_reversed = random.randint(0, 1)
-        upright_path = os.path.join(self.tarots_dir, "image", f"{tarot}.png")
 
         if is_reversed:
             meaning = self.tarots_meaning.get(f"{tarot}_r")
         else:
             meaning = self.tarots_meaning.get(f"{tarot}")
 
-        # 翻转牌：用 Pillow 旋转正向图片生成临时文件，避免存储两份图片
-        if is_reversed and os.path.exists(upright_path):
-            img = Image.open(upright_path)
+        # 从 CDN 下载正向牌图片
+        image_url = f"{self.resource_manager.tarots_cdn_base}/{tarot}.png"
+        download_filename = f"tarot_{tarot}_{self.resource_manager.generate_filename()}.png"
+        download_path = os.path.join(self.output_dir, download_filename)
+        downloaded = await self.resource_manager.download_image(image_url, download_path)
+
+        if downloaded is None:
+            self.plugin_logger.log(f"从 CDN 下载塔罗牌失败: {image_url}", PluginLoggerLevel.WARNING)
+            message_result = event.make_result()
+            message_result.chain = [
+                Comp.Plain(f"唔...让狐狐帮 {user_name} 摸摸看是什么~\n诶？居然是空的！绝对不是我弄坏了哦 QAQ，是真的什么都没有捞到 www"),
+            ]
+            await event.send(message_result)
+            return
+
+        # 翻转牌：用 Pillow 旋转下载的正向图片生成临时文件
+        image_path = ""
+        if is_reversed:
+            img = Image.open(downloaded)
             rotated = img.rotate(180)
-            temp_filename = f"{tarot}_reversed_{self.resource_manager.generate_filename()}.png"
-            image_path = os.path.join(self.output_dir, temp_filename)
+            output_filename = f"{tarot}_reversed_{self.resource_manager.generate_filename()}.png"
+            image_path = os.path.join(self.output_dir, output_filename)
             rotated.save(image_path)
-            self.resource_manager.schedule_delete(image_path, self.output_delay_time)
         else:
-            image_path = upright_path
+            image_path = downloaded
 
-        # 构建返回消息
+        # 扣除小饼干
+        if not self.infinite_credit:
+            self.user_data.groups[group_id].users[user_id].credit -= 1
+            current_credit = self.user_data.groups[group_id].users[user_id].credit
+        else:
+            current_credit = "infinite"
+
         message_result = event.make_result()
-        if os.path.exists(image_path):
-            if not self.infinite_credit:
-                self.user_data.groups[group_id].users[user_id].credit -= 1
-                current_credit = self.user_data.groups[group_id].users[user_id].credit
-            else:
-                current_credit = "infinite"
+        message_result.chain = [
+            Comp.Plain(f"唔...让我看看 {user_name} 抽到了什么好东西~"),
+            Comp.Image.fromFileSystem(image_path),
+            Comp.Plain(f"结果出来啦：{meaning} www\n作为报酬，这1个小饼干我就嗷呜一口吃掉啦！你现在还剩 {current_credit} 个小饼干哦 0v0"),
+        ]
 
-            message_result.chain = [
-                Comp.Plain(f"让狐狐算算啊, {user_name}抽到的是"),
-                Comp.Image.fromFileSystem(image_path),
-                Comp.Plain(f"这张牌对应的结果是: {meaning}\n本次服务耗费1个小饼干, {user_name}你还剩{current_credit}个哦"),
-            ]
-
-            await self._save_data()
-        else:
-            self.plugin_logger.log(f"{image_path} 对应的图片不存在或存放位置不正确", PluginLoggerLevel.WARNING)
-            message_result.chain = [
-                Comp.Plain(f"让狐狐算算啊, {user_name}抽到的是\n哎!奇怪, 狐狸什么都没有抽到诶"),
-            ]
-
+        await self._save_data()
         await event.send(message_result)
+
+        # 发送完毕后清理临时文件
+        self.resource_manager.schedule_delete(image_path, 0)
+        if is_reversed:
+            self.resource_manager.schedule_delete(downloaded, 0)
 
     @filter.command("fortune")
     async def fortune_handler(self, event: AstrMessageEvent):
@@ -298,15 +321,18 @@ class JiuHuSign(Star):
         user_id = event.get_session_id()
         user_name = event.get_sender_name()
 
-        # 获取背景图片
-        background_files = self.resource_manager.get_files(self.background_dir)
-        if not background_files:
-            self.plugin_logger.log(f"背景图片目录为空或不存在")
+        # 下载运势卡背景图片
+        if not self.background_urls:
+            self.plugin_logger.log("背景图片 URL 列表为空", PluginLoggerLevel.WARNING)
             message_result = event.make_result()
-            message_result.chain = [Comp.Plain("运势功能暂时不可用咕")]
+            message_result.chain = [Comp.Plain(f"呜哇，看运势的牌牌好像卡住了 0v0！绝对不是因为狐狐觉得算命太麻烦才弄坏的哦 QAQ，总之现在暂时算不了啦~")]
             await event.send(message_result)
             return
-        image_path = random.choice(background_files)
+
+        image_url = random.choice(self.background_urls)
+        download_filename = f"fortune_background_{self.resource_manager.generate_filename()}.png"
+        download_path = os.path.join(self.output_dir, download_filename)
+        downloaded = await self.resource_manager.download_image(image_url, download_path)
 
         # 下载用户头像并缓存
         avatar_url = f"https://q1.qlogo.cn/g?b=qq&nk={user_id}&s=640"
@@ -352,7 +378,7 @@ class JiuHuSign(Star):
 
         # 生成运势卡
         output_path = await self.generator.generate(
-            input_path=image_path,
+            input_path=downloaded,
             title=title,
             yi_text=yi_text.strip(),
             ji_text=ji_text.strip(),
@@ -360,15 +386,11 @@ class JiuHuSign(Star):
         )
 
         if output_path is None:
-            self.plugin_logger.log("生成运势卡时出现错误")
+            self.plugin_logger.log("生成运势卡时出现错误", PluginLoggerLevel.ERROR)
             message_result = event.make_result()
             message_result.chain = [Comp.Plain(f"呜哇，看运势的牌牌好像卡住了 0v0！绝对不是因为狐狐觉得算命太麻烦才弄坏的哦 QAQ，总之现在暂时算不了啦~")]
             await event.send(message_result)
             return 
-
-        # 延时删除生成的卡片和缓存的头像图片
-        self.resource_manager.schedule_delete(output_path, self.output_delay_time)
-        self.resource_manager.schedule_delete(avatar_path, self.avatar_delay_time)
 
         # 构建返回消息
         message_result = event.make_result()
@@ -377,6 +399,11 @@ class JiuHuSign(Star):
         ]  
 
         await event.send(message_result)
+
+        # 延时删除生成的卡片、背景原图和缓存的头像图片
+        self.resource_manager.schedule_delete(output_path, self.output_delay_time)
+        self.resource_manager.schedule_delete(downloaded, 0)
+        self.resource_manager.schedule_delete(avatar_path, self.avatar_delay_time)
 
     async def terminate(self):
         # 删除缓存的用户头像和运势卡片
