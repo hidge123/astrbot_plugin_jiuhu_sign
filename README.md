@@ -88,3 +88,5 @@ astrbot_plugin_jiuhu_sign/
 ## 许可证
 
 本项目基于 [GNU Affero General Public License v3.0](LICENSE) 开源。
+
+<div align="center"><img src="./logo.jpeg" width="300"></div>
