@@ -32,7 +32,7 @@ class ResourceManager:
         self.tarots_dir = os.path.join(self.plugin_dir, "tarots")
         self.tarots_meaning_file = os.path.join(self.tarots_dir, "tarot_meanings.json")
         # 塔罗牌图片 CDN 地址
-        self.tarots_cdn_base = "https://cdn.jsdelivr.net/gh/hidge123/astrbot_plugin_jiuhu_sign_images@main/tarots"
+        self.tarots_cdn_base = "https://raw.giteeusercontent.com/hidge/astrbot_plugin_jiuhu_sign_images/raw/master/tarots"
         # 今日运势相关功能所需文件路径
         self.fortune_dir = os.path.join(self.plugin_dir, "fortune")
         self.font_dir = os.path.join(self.fortune_dir, "font")
