@@ -169,15 +169,15 @@ class JiuHuSign(Star):
         """保存用户数据到文件（异步，使用线程池避免阻塞）"""
         await self.resource_manager.save_data(self.user_data)
 
-    def _init_user_credit(self, group_id, user_id):
-        """获取或初始化用户的 credit"""
+    def _init_user(self, group_id, user_id):
+        """确保用户数据存在，不存在则初始化"""
         if group_id not in self.user_data.groups:
             from .sign_config import GroupData
             self.user_data.groups[group_id] = GroupData(users={})
 
         if user_id not in self.user_data.groups[group_id].users:
             from .sign_config import UserData
-            self.user_data.groups[group_id].users[user_id] = UserData(credit=0)
+            self.user_data.groups[group_id].users[user_id] = UserData()
 
     def _get_fortune(self) -> FortuneType:
         """根据配置的概率获取运势结果"""
@@ -220,11 +220,24 @@ class JiuHuSign(Star):
         user_name = event.get_sender_name()
 
         # 确保用户的credit数据存在
-        self._init_user_credit(group_id, user_id)
+        self._init_user(group_id, user_id)
+
+        # 检查今日是否已签到
+        from datetime import datetime
+        today = datetime.now().strftime("%Y-%m-%d")
+        last_date = self.user_data.groups[group_id].users[user_id].last_sign_date
+        if last_date == today:
+            message_result = event.make_result()
+            message_result.chain = [
+                Comp.Plain(f"{user_name} 今天已经签到过了哦，一天只能领一次小饼干 0v0\n明天再来找我玩吧~"),
+            ]
+            await event.send(message_result)
+            return
 
         # 签到获得 1-5 个小饼干
         gained = random.randint(1, 5)
         self.user_data.groups[group_id].users[user_id].credit += gained
+        self.user_data.groups[group_id].users[user_id].last_sign_date = today
 
         if self.infinite_credit:
             current_credit = "infinite"
@@ -247,7 +260,7 @@ class JiuHuSign(Star):
         user_name = event.get_sender_name()
 
         # 确保用户的credit数据存在
-        self._init_user_credit(group_id, user_id)
+        self._init_user(group_id, user_id)
 
         # 检查小饼干是否足够
         if self.user_data.groups[group_id].users[user_id].credit <= 0 and not self.infinite_credit:
