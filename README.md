@@ -52,11 +52,9 @@ pip install -r requirements.txt
 
 ## 自定义资源
 
-- **塔罗牌图片**：替换 `tarots/image/` 目录下的 22 张大阿尔卡那图片（`.png` 格式），文件名对应 `TarotType` 枚举值（如 `the_fool.png`、`the_magician.png`）。逆位牌由插件自动旋转生成，无需额外准备。
 - **塔罗牌含义**：编辑 `tarots/tarot_meanings.json` 自定义每张牌正/逆位的解释文本。
-- **运势背景**：替换 `fortune/backgrounds/` 目录下的背景图片。
-- **宜忌事项**：编辑 `fortune/fortune_text.json` 自定义黄历宜忌文本。
-- **运势卡字体**：替换 `fortune/font/mengxin.TTF`。
+- **运势背景**：编辑 `fortune/background.json` 目录下的背景图片链接。
+- **宜忌事项**：编辑 `fortune/fortune_text.json` 自定义宜忌文本。
 
 ## 目录结构
 
