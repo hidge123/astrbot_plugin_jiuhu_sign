@@ -7,6 +7,7 @@ import os
 import asyncio
 from enum import Enum
 from PIL import Image
+from astrbot.core.exceptions import ProviderNotFoundError
 from .sign_config import SignData
 from .plugin_logger import PluginLogger, PluginLoggerLevel
 from .resources import ResourceManager
@@ -60,7 +61,7 @@ class JiuHuSign(Star):
             self.plugin_logger = PluginLogger(PluginLoggerLevel.WARNING)
 
         self.user_data: SignData = SignData()   # 用于存储用户签到相关数据
-        self.tarots_meaning = {}   # 用于存储塔罗牌的含义
+        # self.tarots_meaning = {}   # 已改为 LLM 动态解析，不再使用本地含义文件
         self.fortune_text = {}  # 用于存储宜忌事项
         self.background_urls: list[str] = []   # 用于存储运势卡背景图的url
         
@@ -146,10 +147,11 @@ class JiuHuSign(Star):
             await self._save_data()
             self.plugin_logger.log("已创建签到数据文件", PluginLoggerLevel.INFO)
 
-        if os.path.exists(self.tarots_meaning_file):
-            self.tarots_meaning = await self.resource_manager.read_json(self.tarots_meaning_file)
-        else:
-            self.plugin_logger.log("文件tarot_meaning.json缺失", PluginLoggerLevel.ERROR)
+        # 已改为 LLM 动态解析，不再使用本地含义文件
+        # if os.path.exists(self.tarots_meaning_file):
+        #     self.tarots_meaning = await self.resource_manager.read_json(self.tarots_meaning_file)
+        # else:
+        #     self.plugin_logger.log("文件tarot_meaning.json缺失", PluginLoggerLevel.ERROR)
 
         if os.path.exists(self.fortune_text_file):
             self.fortune_text = await self.resource_manager.read_json(self.fortune_text_file)
@@ -213,6 +215,33 @@ class JiuHuSign(Star):
 
         return fortune
 
+    async def _get_tarot_meaning(self, event: AstrMessageEvent, tarots, is_reversed) -> str:
+        umo = event.unified_msg_origin
+        provider_id = self.config["tarot_config"]["llm_provider_id"]
+        if not provider_id:
+            self.plugin_logger.log("未配置塔罗牌含义解释模型, 使用astrbot默认模型")
+            provider_id = await self.context.get_current_chat_provider_id(umo)
+
+        prompt = self.config["tarot_config"]["llm_prompt"] + "\n"
+        for tarot, is_rever in zip(tarots, is_reversed, strict=True):
+            if is_rever:
+                prompt += f"{tarot}: 逆位\n"
+            else:
+                prompt += f"{tarot}: 正位\n"
+
+        try:
+            llm_resp = await self.context.llm_generate(
+                chat_provider_id=provider_id, # 聊天模型 ID
+                prompt=prompt,
+            )
+            return llm_resp.completion_text
+        except ProviderNotFoundError as e:
+            self.plugin_logger.log(f"未找到塔罗牌含义解析模型: {e}", PluginLoggerLevel.ERROR)
+            return "不知道"
+        except Exception as e:
+            self.plugin_logger.log(f"调用模型解析塔罗牌含义时出现错误: {e}", PluginLoggerLevel.ERROR)
+            return "不知道"
+    
     @filter.command("sign")
     async def sign_handler(self, event: AstrMessageEvent):
         group_id = event.get_group_id()
@@ -254,16 +283,23 @@ class JiuHuSign(Star):
         await event.send(message_result)
 
     @filter.command("tarot")
-    async def tarot_handler(self, event: AstrMessageEvent):
+    async def tarot_handler(self, event: AstrMessageEvent, cards: int = 1): 
         group_id = event.get_group_id()
         user_id = event.get_session_id()
         user_name = event.get_sender_name()
 
+        if not (1 <= cards <= 3):
+            cards = min(3, max(cards, 1))
+            self.plugin_logger.log(f"抽取卡牌的数量超出范围, 已重新调整为{cards}", PluginLoggerLevel.WARNING)
+        
+        # 每张卡消耗的credit
+        per_cost = 1
+
         # 确保用户的credit数据存在
-        self._init_user(group_id, user_id)
+        self._init_user(group_id, user_id)        
 
         # 检查小饼干是否足够
-        if self.user_data.groups[group_id].users[user_id].credit <= 0 and not self.infinite_credit:
+        if self.user_data.groups[group_id].users[user_id].credit <= cards * per_cost and not self.infinite_credit:
             message_result = event.make_result()
             message_result.chain = [
                 Comp.Plain(f"诶...你的小饼干不够了呀，这点零食还想骗我干活 QAQ？\n快去发个 '/sign' 领点小饼干再来找我玩嘛~"),
@@ -272,61 +308,77 @@ class JiuHuSign(Star):
             return
 
         # 抽取塔罗牌
-        tarot = random.choice(self.tarot_type).value
-        is_reversed = random.randint(0, 1)
+        tarots = [i.value for i in random.sample(self.tarot_type, cards)]
+        is_reversed = [random.randint(0, 1) for i in range(cards)]
 
-        if is_reversed:
-            meaning = self.tarots_meaning.get(f"{tarot}_r")
-        else:
-            meaning = self.tarots_meaning.get(f"{tarot}")
+        # 并发：LLM 解析含义 与 CDN 下载图片同时进行
+        meaning_task = asyncio.create_task(self._get_tarot_meaning(event, tarots, is_reversed))
 
         # 从 CDN 下载正向牌图片
-        image_url = f"{self.resource_manager.tarots_cdn_base}/{tarot}.png"
-        download_filename = f"tarot_{tarot}_{self.resource_manager.generate_filename()}.png"
-        download_path = os.path.join(self.output_dir, download_filename)
-        downloaded = await self.resource_manager.download_image(image_url, download_path)
+        image_urls = [f"{self.resource_manager.tarots_cdn_base}/{i}.png" for i in tarots]
+        download_filenames = [f"tarot_{i}_{self.resource_manager.generate_filename()}.png" for i in tarots]
+        download_paths = [os.path.join(self.output_dir, i) for i in download_filenames]
 
-        if downloaded is None:
-            self.plugin_logger.log(f"从 CDN 下载塔罗牌失败: {image_url}", PluginLoggerLevel.WARNING)
-            message_result = event.make_result()
-            message_result.chain = [
-                Comp.Plain(f"唔...让狐狐帮 {user_name} 摸摸看是什么~\n诶？居然是空的！绝对不是我弄坏了哦 QAQ，是真的什么都没有捞到 www"),
-            ]
-            await event.send(message_result)
-            return
+        tasks = []
+        for url, path in zip(image_urls, download_paths, strict=True):
+            tasks.append(self.resource_manager.download_image(url, path))
+        downloadeds = await asyncio.gather(*tasks)
+
+        for downloaded, url in zip(downloadeds, image_urls, strict=True):
+            if downloaded is None:
+                self.plugin_logger.log(f"从 CDN 下载塔罗牌失败: {url}", PluginLoggerLevel.WARNING)
+                # 清理已下载的临时文件
+                for d in downloadeds:
+                    if d is not None:
+                        self.resource_manager.schedule_delete(d, 0)
+                message_result = event.make_result()
+                message_result.chain = [
+                    Comp.Plain(f"唔...让狐狐帮 {user_name} 摸摸看是什么~\n诶？居然是空的！绝对不是我弄坏了哦 QAQ，是真的什么都没有捞到 www"),
+                ]
+                await event.send(message_result)
+                return
 
         # 翻转牌：用 Pillow 旋转下载的正向图片生成临时文件
-        image_path = ""
-        if is_reversed:
-            img = Image.open(downloaded)
-            rotated = img.rotate(180)
-            output_filename = f"{tarot}_reversed_{self.resource_manager.generate_filename()}.png"
-            image_path = os.path.join(self.output_dir, output_filename)
-            rotated.save(image_path)
-        else:
-            image_path = downloaded
+        image_paths = []
+        for downloaded, is_rever, tarot in zip(downloadeds, is_reversed, tarots, strict=True):
+            if is_rever:
+                img = Image.open(downloaded)
+                rotated = img.rotate(180)
+                output_filename = f"{tarot}_reversed_{self.resource_manager.generate_filename()}.png"
+                image_path = os.path.join(self.output_dir, output_filename)
+                rotated.save(image_path)
+            else:
+                image_path = downloaded
+            
+            image_paths.append(image_path)
+
+
+        # 等待 LLM 含义解析完成
+        meaning = await meaning_task
 
         # 扣除小饼干
         if not self.infinite_credit:
-            self.user_data.groups[group_id].users[user_id].credit -= 1
+            self.user_data.groups[group_id].users[user_id].credit -= cards * per_cost
             current_credit = self.user_data.groups[group_id].users[user_id].credit
         else:
             current_credit = "infinite"
 
+        # 构建返回消息
         message_result = event.make_result()
-        message_result.chain = [
-            Comp.Plain(f"唔...让我看看 {user_name} 抽到了什么好东西~"),
-            Comp.Image.fromFileSystem(image_path),
-            Comp.Plain(f"结果出来啦：{meaning} www\n作为报酬，这1个小饼干我就嗷呜一口吃掉啦！你现在还剩 {current_credit} 个小饼干哦 0v0"),
-        ]
+        message_result.chain = [Comp.Plain(f"唔...让我看看 {user_name} 抽到了什么好东西~")]
+        for image_path in image_paths:
+            message_result.chain.append(Comp.Image.fromFileSystem(image_path))
+        message_result.chain.append(Comp.Plain(f"结果出来啦：{meaning} www\n作为报酬，这{cards}个小饼干我就嗷呜一口吃掉啦！你现在还剩 {current_credit} 个小饼干哦 0v0"))
+
 
         await self._save_data()
         await event.send(message_result)
 
         # 发送完毕后清理临时文件
-        self.resource_manager.schedule_delete(image_path, 0)
-        if is_reversed:
-            self.resource_manager.schedule_delete(downloaded, 0)
+        for downloaded, image_path, rev in zip(downloadeds, image_paths, is_reversed, strict=True):
+            self.resource_manager.schedule_delete(image_path, 0)
+            if rev:
+                self.resource_manager.schedule_delete(downloaded, 0)
 
     @filter.command("fortune")
     async def fortune_handler(self, event: AstrMessageEvent):

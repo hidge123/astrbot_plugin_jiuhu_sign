@@ -15,6 +15,31 @@
         }
     },
 
+    "tarot_config":
+    {
+        "description": "塔罗牌相关配置",
+        "type": "object",
+        "hint": "",
+        "items":
+        {
+            "llm_provider_id":
+            {
+                "description": "LLM模型ID",
+                "hint": "用于解析抽取塔罗牌含义的模型提供商id",
+                "type": "string",
+                "_special": "select_provider",
+                "default": ""
+            },
+            "llm_prompt":
+            {
+                "description": "请求提示词",
+                "hint": "用于请求模型的提示词(塔罗牌信息会动态的拼接到该提示词之后)",
+                "type": "text",
+                "default": "请跟据以下抽到的塔罗牌类型给出占卜结果, 注意回复要简洁, 保持在一句话之内"
+            }
+        }
+    },
+
     "fortune_config":
     {
         "description": "今日运势相关配置",
