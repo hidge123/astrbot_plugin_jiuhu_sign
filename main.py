@@ -12,6 +12,7 @@ from .sign_config import SignData
 from .plugin_logger import PluginLogger, PluginLoggerLevel
 from .resources import ResourceManager
 from .generator import FortuneCardGenerator
+from datetime import datetime
 
 
 class TarotType(Enum):
@@ -61,7 +62,7 @@ class JiuHuSign(Star):
             self.plugin_logger = PluginLogger(PluginLoggerLevel.WARNING)
 
         self.user_data: SignData = SignData()   # 用于存储用户签到相关数据
-        # self.tarots_meaning = {}   # 已改为 LLM 动态解析，不再使用本地含义文件
+        self.tarots_meaning = {}   # 塔罗牌本地含义，作为 LLM 提示词的参考
         self.fortune_text = {}  # 用于存储宜忌事项
         self.background_urls: list[str] = []   # 用于存储运势卡背景图的url
         
@@ -147,11 +148,10 @@ class JiuHuSign(Star):
             await self._save_data()
             self.plugin_logger.log("已创建签到数据文件", PluginLoggerLevel.INFO)
 
-        # 已改为 LLM 动态解析，不再使用本地含义文件
-        # if os.path.exists(self.tarots_meaning_file):
-        #     self.tarots_meaning = await self.resource_manager.read_json(self.tarots_meaning_file)
-        # else:
-        #     self.plugin_logger.log("文件tarot_meaning.json缺失", PluginLoggerLevel.ERROR)
+        if os.path.exists(self.tarots_meaning_file):
+            self.tarots_meaning = await self.resource_manager.read_json(self.tarots_meaning_file)
+        else:
+            self.plugin_logger.log("文件tarot_meaning.json缺失", PluginLoggerLevel.ERROR)
 
         if os.path.exists(self.fortune_text_file):
             self.fortune_text = await self.resource_manager.read_json(self.fortune_text_file)
@@ -181,7 +181,12 @@ class JiuHuSign(Star):
             from .sign_config import UserData
             self.user_data.groups[group_id].users[user_id] = UserData()
 
-    def _get_fortune(self) -> FortuneType:
+    @staticmethod
+    def _today() -> str:
+        """返回今日日期字符串 YYYY-MM-DD"""
+        return datetime.now().strftime("%Y-%m-%d")
+
+    def _get_fortune(self, rng: random.Random) -> FortuneType:
         """根据配置的概率获取运势结果"""
         max_val = 10
         min_val = 1
@@ -202,16 +207,16 @@ class JiuHuSign(Star):
             bad = 5
             self.plugin_logger.log("凶的概率超出范围")
 
-        rand = random.randint(1, good + normal + bad)
+        rand = rng.randint(1, good + normal + bad)
         if (rand <= bad):
             candidate = [FortuneType.XIONG, FortuneType.DA_XIONG]
-            fortune = random.choice(candidate)
+            fortune = rng.choice(candidate)
         elif (rand <= bad + normal):
             candidate = [FortuneType.MO_JI, FortuneType.PING]
-            fortune = random.choice(candidate)
+            fortune = rng.choice(candidate)
         else:
             candidate = [FortuneType.DA_JI, FortuneType.ZHONG_JI, FortuneType.XIAO_JI]
-            fortune = random.choice(candidate)
+            fortune = rng.choice(candidate)
 
         return fortune
 
@@ -224,10 +229,12 @@ class JiuHuSign(Star):
 
         prompt = self.config["tarot_config"]["llm_prompt"] + "\n"
         for tarot, is_rever in zip(tarots, is_reversed, strict=True):
-            if is_rever:
-                prompt += f"{tarot}: 逆位\n"
+            key = f"{tarot}_r" if is_rever else tarot
+            local_meaning = self.tarots_meaning.get(key, "")
+            if local_meaning:
+                prompt += f"{tarot}: 逆位 (参考含义: {local_meaning})\n" if is_rever else f"{tarot}: 正位 (参考含义: {local_meaning})\n"
             else:
-                prompt += f"{tarot}: 正位\n"
+                prompt += f"{tarot}: 逆位\n" if is_rever else f"{tarot}: 正位\n"
 
         try:
             llm_resp = await self.context.llm_generate(
@@ -241,20 +248,20 @@ class JiuHuSign(Star):
         except Exception as e:
             self.plugin_logger.log(f"调用模型解析塔罗牌含义时出现错误: {e}", PluginLoggerLevel.ERROR)
             return "不知道"
-    
+        
+
     @filter.command("sign")
     async def sign_handler(self, event: AstrMessageEvent):
         group_id = event.get_group_id()
         user_id = event.get_session_id()
         user_name = event.get_sender_name()
 
-        # 确保用户的credit数据存在
+        # 确保用户的数据存在
         self._init_user(group_id, user_id)
 
         # 检查今日是否已签到
-        from datetime import datetime
-        today = datetime.now().strftime("%Y-%m-%d")
-        last_date = self.user_data.groups[group_id].users[user_id].last_sign_date
+        today = self._today()
+        last_date = self.user_data.groups[group_id].users[user_id].last_sign_date 
         if last_date == today:
             message_result = event.make_result()
             message_result.chain = [
@@ -296,7 +303,7 @@ class JiuHuSign(Star):
         per_cost = 1
 
         # 确保用户的credit数据存在
-        self._init_user(group_id, user_id)        
+        self._init_user(group_id, user_id)
 
         # 检查小饼干是否足够
         if self.user_data.groups[group_id].users[user_id].credit <= cards * per_cost and not self.infinite_credit:
@@ -307,9 +314,14 @@ class JiuHuSign(Star):
             await event.send(message_result)
             return
 
-        # 抽取塔罗牌
-        tarots = [i.value for i in random.sample(self.tarot_type, cards)]
-        is_reversed = [random.randint(0, 1) for i in range(cards)]
+        # 抽取塔罗牌（fix_random 开启时同用户同天结果固定）
+        if self.config["tarot_config"]["fix_random"]:
+            seed = f"{self._today()}_{user_id}"
+            rng = random.Random(seed)
+        else:
+            rng = random.Random()
+        tarots = [i.value for i in rng.sample(self.tarot_type, cards)]
+        is_reversed = [rng.randint(0, 1) for _ in range(cards)]
 
         # 并发：LLM 解析含义 与 CDN 下载图片同时进行
         meaning_task = asyncio.create_task(self._get_tarot_meaning(event, tarots, is_reversed))
@@ -394,7 +406,14 @@ class JiuHuSign(Star):
             await event.send(message_result)
             return
 
-        image_url = random.choice(self.background_urls)
+        # fix_random 开启时同用户同天结果固定
+        if self.config["fortune_config"]["fix_random"]:
+            seed = f"{self._today()}_{user_id}"
+            rng = random.Random(seed)
+        else:
+            rng = random.Random()
+
+        image_url = rng.choice(self.background_urls)
         download_filename = f"fortune_background_{self.resource_manager.generate_filename()}.png"
         download_path = os.path.join(self.output_dir, download_filename)
         downloaded = await self.resource_manager.download_image(image_url, download_path)
@@ -405,7 +424,7 @@ class JiuHuSign(Star):
         avatar_path = await self.resource_manager.download_image(avatar_url, avatar_path)
 
         # 根据概率选择运势文本
-        fortune = self._get_fortune()
+        fortune = self._get_fortune(rng)
         YI = self.fortune_text["yi"]
         JI = self.fortune_text["ji"]
 
@@ -417,29 +436,29 @@ class JiuHuSign(Star):
             yi_text = "诸事皆宜"
             ji_text = "无"
         elif (fortune is FortuneType.ZHONG_JI or fortune is FortuneType.XIAO_JI):
-            yi_choices = random.sample(range(len(YI)), 3)
+            yi_choices = rng.sample(range(len(YI)), 3)
             for i in yi_choices:
                 yi_text += YI[i] + " "
 
-            ji_choices = random.sample(range(len(JI)), 1)
+            ji_choices = rng.sample(range(len(JI)), 1)
             for i in ji_choices:
                 ji_text += JI[i] + " "
         elif (fortune is FortuneType.MO_JI or fortune is FortuneType.PING):
-            yi_choices = random.sample(range(len(YI)), 2)
+            yi_choices = rng.sample(range(len(YI)), 2)
             for i in yi_choices:
                 yi_text += YI[i] + " "
 
-            ji_choices = random.sample(range(len(JI)), 2)
+            ji_choices = rng.sample(range(len(JI)), 2)
             for i in ji_choices:
                 ji_text += JI[i] + " "
         else:
-            yi_choices = random.sample(range(len(YI)), 1)
+            yi_choices = rng.sample(range(len(YI)), 1)
             for i in yi_choices:
                 yi_text += YI[i] + " "
 
-            ji_choices = random.sample(range(len(JI)), 3)
+            ji_choices = rng.sample(range(len(JI)), 3)
             for i in ji_choices:
-                ji_text += JI[i] + " " 
+                ji_text += JI[i] + " "
 
         # 生成运势卡
         output_path = await self.generator.generate(

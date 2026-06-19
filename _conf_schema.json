@@ -30,12 +30,21 @@
                 "_special": "select_provider",
                 "default": ""
             },
+
             "llm_prompt":
             {
                 "description": "请求提示词",
                 "hint": "用于请求模型的提示词(塔罗牌信息会动态的拼接到该提示词之后)",
                 "type": "text",
-                "default": "请跟据以下抽到的塔罗牌类型给出占卜结果, 注意回复要简洁, 保持在一句话之内"
+                "default": "请跟据以下抽到的塔罗牌类型和含义给出占卜结果, 注意回复要简洁, 保持在一两句话之内, 回复风格与给出的含义解释保持一致"
+            },
+
+            "fix_random":
+            {
+                "description": "固定每天结果",
+                "hint": "如果为真, 则每个用户同一天抽到的牌保持不变",
+                "type": "bool",
+                "default": false
             }
         }
     },
@@ -103,6 +112,14 @@
                         "slider": {"min": 1, "max": 10, "step": 1}
                     }
                 }
+            },
+
+            "fix_random":
+            {
+                "description": "固定每天结果",
+                "hint": "如果为真, 则每个用户同一天抽到的运势结果保持不变",
+                "type": "bool",
+                "default": false
             }
         }
     },
