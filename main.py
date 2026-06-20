@@ -301,7 +301,7 @@ class JiuHuSign(Star):
     async def sign_handler(self, event: AstrMessageEvent) -> None:
         """签到指令：每日签到获取小饼干。"""
         group_id: str = event.get_group_id()
-        user_id: str = event.get_session_id()
+        user_id: str = event.get_sender_id()
         user_name: str = event.get_sender_name()
 
         self._init_user(group_id, user_id)
@@ -346,7 +346,7 @@ class JiuHuSign(Star):
     async def tarot_handler(self, event: AstrMessageEvent, cards: int = 1) -> None:
         """塔罗牌占卜指令：消耗小饼干抽取塔罗牌。"""
         group_id: str = event.get_group_id()
-        user_id: str = event.get_session_id()
+        user_id: str = event.get_sender_id()
         user_name: str = event.get_sender_name()
 
         # 限制抽牌数量
@@ -483,7 +483,7 @@ class JiuHuSign(Star):
     @filter.command("fortune", alias={"运势", "jrys", "ys"})
     async def fortune_handler(self, event: AstrMessageEvent) -> None:
         """运势卡指令：生成今日运势卡片。"""
-        user_id: str = event.get_session_id()
+        user_id: str = event.get_sender_id()
 
         # 检查背景图列表
         if not self.background_urls:
