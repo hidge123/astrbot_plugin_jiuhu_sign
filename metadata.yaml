@@ -1,7 +1,7 @@
 name: astrbot_plugin_jiuhu_sign
 display_name: 酒狐主题签到
 desc: 酒狐主题的签到插件，支持每日签到、塔罗牌占卜、今日运势卡生成
-version: v1.0.0
+version: v1.2.1
 author: hidge123
 repo: https://github.com/hidge123/astrbot_plugin_jiuhu_sign
 support_platforms:
