@@ -297,7 +297,7 @@ class JiuHuSign(Star):
     # 指令处理器
     # ------------------------------------------------------------------
 
-    @filter.command("sign")
+    @filter.command("sign", alias={"签到"})
     async def sign_handler(self, event: AstrMessageEvent) -> None:
         """签到指令：每日签到获取小饼干。"""
         group_id: str = event.get_group_id()
@@ -342,7 +342,7 @@ class JiuHuSign(Star):
         ]
         await event.send(message_result)
 
-    @filter.command("tarot")
+    @filter.command("tarot", alias={"card", "tlp"})
     async def tarot_handler(self, event: AstrMessageEvent, cards: int = 1) -> None:
         """塔罗牌占卜指令：消耗小饼干抽取塔罗牌。"""
         group_id: str = event.get_group_id()
@@ -480,7 +480,7 @@ class JiuHuSign(Star):
             if reversed_flag:
                 self.resource_manager.schedule_delete(downloaded_path, 0)
 
-    @filter.command("fortune")
+    @filter.command("fortune", alias={"运势", "jrys", "ys"})
     async def fortune_handler(self, event: AstrMessageEvent) -> None:
         """运势卡指令：生成今日运势卡片。"""
         user_id: str = event.get_session_id()
