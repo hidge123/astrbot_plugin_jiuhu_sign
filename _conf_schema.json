@@ -25,7 +25,7 @@
             "llm_provider_id":
             {
                 "description": "LLM模型ID",
-                "hint": "用于解析抽取塔罗牌含义的模型提供商id",
+                "hint": "用于解析抽取塔罗牌含义的模型提供商id(为空使用astrbot默认对话模型)",
                 "type": "string",
                 "_special": "select_provider",
                 "default": ""

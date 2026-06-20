@@ -1,14 +1,15 @@
 # 酒狐主题签到 (astrbot_plugin_jiuhu_sign)
 
+<div align="center"><img src="./logo.jpeg" width="300"></div>
 一个简单的酒狐主题的 AstrBot 签到插件，提供每日签到、塔罗牌占卜和今日运势卡生成功能。
 
 ## 功能
 
-| 指令 | 说明 |
-|------|------|
-| `/sign` | 每日签到，随机获得 1-5 个小饼干 |
-| `/tarot` | 抽取一张塔罗牌（消耗 1 个小饼干），含正位/逆位 |
-| `/fortune` | 生成今日运势卡（大吉/中吉/小吉/末吉/平/凶/大凶） |
+| 指令 | 参数 | 说明 |
+|------|------|------|
+| `/sign` | 无 | 每日签到，随机获得 1-5 个小饼干 |
+| `/tarot` | 接受一个整数n(1-3) | 抽取n张塔罗牌（消耗 n 个小饼干），含正位/逆位 |
+| `/fortune` | 无 | 生成今日运势卡（大吉/中吉/小吉/末吉/平/凶/大凶） |
 
 **注意: 运势功能尚未完善**
 
@@ -33,6 +34,12 @@ pip install -r requirements.txt
   "sign_config": {
     "infinite_credit": false       // 无限饼干模式，开启后不消耗饼干
   },
+  "tarot_config":
+  {
+    "llm_provider": "",           // LLM模型ID
+    "llm_prompt": "",             // 请求提示词
+    "fix_random": false           // 固定塔罗牌每天结果
+  },
   "fortune_config": {
     "delay_time": {
       "avatar": 60,               // 用户头像缓存时间（秒）
@@ -42,7 +49,8 @@ pip install -r requirements.txt
       "ji": 10,                   // 吉的概率权重（1-10）
       "ping": 10,                 // 平的概率权重（1-10）
       "xiong": 10                 // 凶的概率权重（1-10）
-    }
+    },
+  "fix_random": false             // 固定运势卡每天结果
   },
   "other_config": {
     "debug_mode": false           // 开启调试日志
@@ -52,7 +60,7 @@ pip install -r requirements.txt
 
 ## 自定义资源
 
-- **塔罗牌含义**：编辑 `tarots/tarot_meanings.json` 自定义每张牌正/逆位的解释文本。
+- **塔罗牌含义**：编辑 `tarots/tarot_meanings.json` 自定义每张牌正/逆位的解释的参考文本。
 - **运势背景**：编辑 `fortune/background.json` 目录下的背景图片链接。
 - **宜忌事项**：编辑 `fortune/fortune_text.json` 自定义宜忌文本。
 
@@ -70,11 +78,10 @@ astrbot_plugin_jiuhu_sign/
 ├── generator.py         # 运势卡图片生成器
 ├── fortune/
 │   ├── font/            # 字体文件
-│   ├── backgrounds/     # 运势卡背景图片
-│   └── fortune_text.json
+│   ├── background.json     # 运势卡背景图片链接
+│   └── fortune_text.json   # 运势卡文本
 └── tarots/
-    ├── image/           # 22张大阿尔卡那牌图片
-    └── tarot_meanings.json
+    └── tarot_meanings.json # 塔罗牌文本
 ```
 
 运行时数据目录：`plugin_data/astrbot_plugin_jiuhu_sign/`
@@ -86,5 +93,3 @@ astrbot_plugin_jiuhu_sign/
 ## 许可证
 
 本项目基于 [GNU Affero General Public License v3.0](LICENSE) 开源。
-
-<div align="center"><img src="./logo.jpeg" width="300"></div>
