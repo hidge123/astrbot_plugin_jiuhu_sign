@@ -1,6 +1,6 @@
 # 酒狐主题签到 (astrbot_plugin_jiuhu_sign)
 
-<div align="center"><img src="./logo.jpeg" width="300"></div>
+<div align="center"><img src="./logo.png" width="300"></div>
 一个简单的酒狐主题的 AstrBot 签到插件，提供每日签到、塔罗牌占卜和今日运势卡生成功能。
 
 ## 功能
